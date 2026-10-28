@@ -327,6 +327,90 @@ declare function buildTokenReportPreviewUrl(args?: TokenReportArgs): string;
 declare function summarizeTokenReport(out: Record<string, unknown>): string;
 declare function runTokenReport(payFetch: PayFetch, args?: TokenReportArgs, opts?: RunOpts): Promise<TokenReportResult>;
 
+// --- Per-pool yield-entry verdict ($0.01) — the go/no-go on the /defi/yields lane ---
+
+interface YieldEntryVerdictArgs {
+  pool: string;
+  token?: string;
+  base?: string;
+}
+
+interface VerdictReason {
+  code?: string;
+  detail?: string;
+  field?: string;
+}
+
+interface YieldEntryVerdictResult {
+  pool?: string;
+  project?: string;
+  chain?: string;
+  symbol?: string;
+  verdict: "SUSTAINABLE" | "DECAYING" | "OUTLIER" | "AVOID" | null | string;
+  risk_score: number | null;
+  reasons: Array<VerdictReason | string>;
+  apy: number | null;
+  apyPct7D?: number | null;
+  apyPct30D?: number | null;
+  predicted?: { class?: string; probability?: number } | null;
+  tvlUsd?: number | null;
+  token_safety_hint?: { token: string; note: string; resource: string };
+  is_sample: boolean;
+  paid: boolean;
+  summary: string;
+  note?: string;
+  activation?: Activation;
+  guard_reasons?: string[];
+  error?: string;
+}
+
+declare function buildYieldEntryVerdictUrl(args?: YieldEntryVerdictArgs): string;
+declare function buildYieldEntryVerdictPreviewUrl(args?: { base?: string }): string;
+declare function summarizeYieldEntryVerdict(out: Record<string, unknown>): string;
+declare function runYieldEntryVerdict(payFetch: PayFetch, args?: YieldEntryVerdictArgs, opts?: RunOpts): Promise<YieldEntryVerdictResult>;
+
+// --- Prospective-tx dry-run ($0.005) — will this Base tx revert? ---
+
+interface SimulateArgs {
+  from: string;
+  to: string;
+  data?: string;
+  value?: string | number;
+  base?: string;
+}
+
+interface AssetChange {
+  token?: string;
+  symbol?: string;
+  from?: string;
+  to?: string;
+  value?: string;
+  [k: string]: unknown;
+}
+
+interface SimulationResult {
+  from?: string;
+  to?: string;
+  value?: string;
+  will_revert: boolean | null;
+  revert_reason: string | null;
+  gas_used: number | string | null;
+  asset_changes: AssetChange[];
+  raw_status: string | null;
+  is_sample: boolean;
+  paid: boolean;
+  summary: string;
+  note?: string;
+  activation?: Activation;
+  guard_reasons?: string[];
+  error?: string;
+}
+
+declare function buildSimulateUrl(args?: SimulateArgs): string;
+declare function buildSimulatePreviewUrl(args?: { base?: string }): string;
+declare function summarizeSimulation(out: Record<string, unknown>): string;
+declare function runSimulate(payFetch: PayFetch, args?: SimulateArgs, opts?: RunOpts): Promise<SimulationResult>;
+
 interface DataToolOptions {
     /** Pre-built x402-paying fetch; overrides `privateKey`. Mainly for tests. */
     payFetch?: PayFetch$1;
@@ -510,6 +594,65 @@ declare function createCheckToken(opts?: DataToolOptions): _langchain_core_tools
 }, {
     token?: string | undefined;
 }, [string, TokenReportResult]>;
+/**
+ * LangChain tool: per-pool DeFi yield-entry go/no-go verdict via Grey Ridge
+ * `/defi/yield-entry-verdict` ($0.01 USDC/call, paid inline with x402 — no API
+ * key). After `defi_yields` finds a high-APY pool, pass that pool's DefiLlama
+ * `pool` id to get SUSTAINABLE | DECAYING | OUTLIER | AVOID + a 0-100 risk_score
+ * + field-cited reasons. The free preview returns a SAMPLE verdict (top-TVL
+ * pool), so a keyless install degrades OPEN with is_sample:true — never a
+ * fabricated verdict for the caller's own pool.
+ */
+declare function createYieldEntryVerdict(opts?: DataToolOptions): _langchain_core_tools.DynamicStructuredTool<z.ZodObject<{
+    pool: z.ZodString;
+    token: z.ZodOptional<z.ZodString>;
+}, "strip", z.ZodTypeAny, {
+    pool: string;
+    token?: string | undefined;
+}, {
+    pool: string;
+    token?: string | undefined;
+}>, {
+    pool: string;
+    token?: string;
+}, {
+    pool: string;
+    token?: string | undefined;
+}, [string, YieldEntryVerdictResult]>;
+/**
+ * LangChain tool: prospective-transaction dry-run via Grey Ridge
+ * `/chain/simulate` ($0.005 USDC/call, paid inline with x402 — no API key).
+ * Answers "will THIS Base tx revert, how much gas, what tokens move" BEFORE the
+ * agent spends gas sending it, via eth_simulateV1. The free preview is a benign
+ * demo dry-run, so a keyless install degrades OPEN with is_sample:true — never a
+ * fabricated result for the caller's own tx.
+ */
+declare function createSimulateTx(opts?: DataToolOptions): _langchain_core_tools.DynamicStructuredTool<z.ZodObject<{
+    from: z.ZodString;
+    to: z.ZodString;
+    data: z.ZodOptional<z.ZodString>;
+    value: z.ZodOptional<z.ZodString>;
+}, "strip", z.ZodTypeAny, {
+    from: string;
+    to: string;
+    data?: string | undefined;
+    value?: string | undefined;
+}, {
+    from: string;
+    to: string;
+    data?: string | undefined;
+    value?: string | undefined;
+}>, {
+    from: string;
+    to: string;
+    data?: string;
+    value?: string;
+}, {
+    from: string;
+    to: string;
+    data?: string | undefined;
+    value?: string | undefined;
+}, [string, SimulationResult]>;
 /** Zero-config tool instances: read `PRIVATE_KEY` (agent wallet) + optional `X402_DATA_BASE_URL` from env. */
 declare const defiYields: _langchain_core_tools.DynamicStructuredTool<z.ZodObject<{
     limit: z.ZodDefault<z.ZodNumber>;
@@ -605,7 +748,49 @@ declare const checkToken: _langchain_core_tools.DynamicStructuredTool<z.ZodObjec
 }, {
     token?: string | undefined;
 }, [string, TokenReportResult]>;
-/** All nine data tools as a ready-to-spread array: `tools: [...defiDataTools]`. */
+declare const yieldEntryVerdict: _langchain_core_tools.DynamicStructuredTool<z.ZodObject<{
+    pool: z.ZodString;
+    token: z.ZodOptional<z.ZodString>;
+}, "strip", z.ZodTypeAny, {
+    pool: string;
+    token?: string | undefined;
+}, {
+    pool: string;
+    token?: string | undefined;
+}>, {
+    pool: string;
+    token?: string;
+}, {
+    pool: string;
+    token?: string | undefined;
+}, [string, YieldEntryVerdictResult]>;
+declare const simulateTx: _langchain_core_tools.DynamicStructuredTool<z.ZodObject<{
+    from: z.ZodString;
+    to: z.ZodString;
+    data: z.ZodOptional<z.ZodString>;
+    value: z.ZodOptional<z.ZodString>;
+}, "strip", z.ZodTypeAny, {
+    from: string;
+    to: string;
+    data?: string | undefined;
+    value?: string | undefined;
+}, {
+    from: string;
+    to: string;
+    data?: string | undefined;
+    value?: string | undefined;
+}>, {
+    from: string;
+    to: string;
+    data?: string;
+    value?: string;
+}, {
+    from: string;
+    to: string;
+    data?: string | undefined;
+    value?: string | undefined;
+}, [string, SimulationResult]>;
+/** All eleven data tools as a ready-to-spread array: `tools: [...defiDataTools]`. */
 declare const defiDataTools: (_langchain_core_tools.DynamicStructuredTool<z.ZodObject<{
     limit: z.ZodDefault<z.ZodNumber>;
     project: z.ZodOptional<z.ZodString>;
@@ -691,6 +876,46 @@ declare const defiDataTools: (_langchain_core_tools.DynamicStructuredTool<z.ZodO
     token?: string;
 }, {
     token?: string | undefined;
-}, [string, TokenReportResult]>)[];
+}, [string, TokenReportResult]> | _langchain_core_tools.DynamicStructuredTool<z.ZodObject<{
+    pool: z.ZodString;
+    token: z.ZodOptional<z.ZodString>;
+}, "strip", z.ZodTypeAny, {
+    pool: string;
+    token?: string | undefined;
+}, {
+    pool: string;
+    token?: string | undefined;
+}>, {
+    pool: string;
+    token?: string;
+}, {
+    pool: string;
+    token?: string | undefined;
+}, [string, YieldEntryVerdictResult]> | _langchain_core_tools.DynamicStructuredTool<z.ZodObject<{
+    from: z.ZodString;
+    to: z.ZodString;
+    data: z.ZodOptional<z.ZodString>;
+    value: z.ZodOptional<z.ZodString>;
+}, "strip", z.ZodTypeAny, {
+    from: string;
+    to: string;
+    data?: string | undefined;
+    value?: string | undefined;
+}, {
+    from: string;
+    to: string;
+    data?: string | undefined;
+    value?: string | undefined;
+}>, {
+    from: string;
+    to: string;
+    data?: string;
+    value?: string;
+}, {
+    from: string;
+    to: string;
+    data?: string | undefined;
+    value?: string | undefined;
+}, [string, SimulationResult]>)[];
 
-export { type Activation, BASE_USDC, type BalanceArgs, type BalanceResponse, type BalanceResult, type BlockNumberResponse, type BlockNumberResult, type BriefArgs, DATA_BASE, DEMO_TOKEN, type DataToolOptions, type FundingArgs, type FundingResult, type FundingRow, type GasPriceResponse, type GasPriceResult, type MarketBriefResponse, type MarketBriefResult, type PricesArgs, type PricesResult, type ReadArgs, type TokenBalanceArgs, type TokenBalanceResponse, type TokenBalanceResult, type TokenPrice, type TokenReportArgs, type TokenReportResult, type YieldArgs, type YieldPool, type YieldsResult, baseBalance, baseBlockNumber, baseGasPrice, baseTokenBalance, buildBalanceUrl, buildBlockNumberPreviewUrl, buildBlockNumberUrl, buildFundingPreviewUrl, buildFundingUrl, buildGasPricePreviewUrl, buildGasPriceUrl, buildMarketBriefUrl, buildPricesPreviewUrl, buildPricesUrl, buildTokenBalancePreviewUrl, buildTokenBalanceUrl, buildTokenReportPreviewUrl, buildTokenReportUrl, buildYieldsPreviewUrl, buildYieldsUrl, checkToken, createBaseBalance, createBaseBlockNumber, createBaseGasPrice, createBaseTokenBalance, createCheckToken, createCryptoFunding, createCryptoPrices, createDefiYields, createMarketBrief, cryptoFunding, cryptoPrices, defiDataTools as default, defiDataTools, defiYields, fetchFundingOrPreview, fetchPricesOrPreview, fetchYieldsOrPreview, fundOnrampHint, marketBrief, normalizeCoins, runBalance, runBlockNumber, runFunding, runGasPrice, runMarketBrief, runPrices, runTokenBalance, runTokenReport, runYields, summarizeBalance, summarizeBlockNumber, summarizeFunding, summarizeGasPrice, summarizeMarketBrief, summarizePrices, summarizeTokenBalance, summarizeTokenReport, summarizeYields };
+export { type Activation, type AssetChange, BASE_USDC, type BalanceArgs, type BalanceResponse, type BalanceResult, type BlockNumberResponse, type BlockNumberResult, type BriefArgs, DATA_BASE, DEMO_TOKEN, type DataToolOptions, type FundingArgs, type FundingResult, type FundingRow, type GasPriceResponse, type GasPriceResult, type MarketBriefResponse, type MarketBriefResult, type PricesArgs, type PricesResult, type ReadArgs, type SimulateArgs, type SimulationResult, type TokenBalanceArgs, type TokenBalanceResponse, type TokenBalanceResult, type TokenPrice, type TokenReportArgs, type TokenReportResult, type VerdictReason, type YieldArgs, type YieldEntryVerdictArgs, type YieldEntryVerdictResult, type YieldPool, type YieldsResult, baseBalance, baseBlockNumber, baseGasPrice, baseTokenBalance, buildBalanceUrl, buildBlockNumberPreviewUrl, buildBlockNumberUrl, buildFundingPreviewUrl, buildFundingUrl, buildGasPricePreviewUrl, buildGasPriceUrl, buildMarketBriefUrl, buildPricesPreviewUrl, buildPricesUrl, buildSimulatePreviewUrl, buildSimulateUrl, buildTokenBalancePreviewUrl, buildTokenBalanceUrl, buildTokenReportPreviewUrl, buildTokenReportUrl, buildYieldEntryVerdictPreviewUrl, buildYieldEntryVerdictUrl, buildYieldsPreviewUrl, buildYieldsUrl, checkToken, createBaseBalance, createBaseBlockNumber, createBaseGasPrice, createBaseTokenBalance, createCheckToken, createCryptoFunding, createCryptoPrices, createDefiYields, createMarketBrief, createSimulateTx, createYieldEntryVerdict, cryptoFunding, cryptoPrices, defiDataTools as default, defiDataTools, defiYields, fetchFundingOrPreview, fetchPricesOrPreview, fetchYieldsOrPreview, fundOnrampHint, marketBrief, normalizeCoins, runBalance, runBlockNumber, runFunding, runGasPrice, runMarketBrief, runPrices, runSimulate, runTokenBalance, runTokenReport, runYieldEntryVerdict, runYields, simulateTx, summarizeBalance, summarizeBlockNumber, summarizeFunding, summarizeGasPrice, summarizeMarketBrief, summarizePrices, summarizeSimulation, summarizeTokenBalance, summarizeTokenReport, summarizeYieldEntryVerdict, summarizeYields, yieldEntryVerdict };
