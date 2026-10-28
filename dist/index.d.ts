@@ -135,6 +135,83 @@ declare function runBalance(
   opts?: { hasKey?: boolean }
 ): Promise<BalanceResult>;
 
+// --- Base-RPC read routes: gas-price, block-number, token-balance ---
+
+declare const BASE_USDC: string;
+
+interface ReadArgs {
+  base?: string;
+}
+interface TokenBalanceArgs {
+  address: string;
+  token?: string;
+  base?: string;
+}
+
+interface GasPriceResponse {
+  gas_price_wei?: string;
+  gas_price_gwei?: number;
+  base_fee_gwei?: number | null;
+  priority_fee_gwei?: number | null;
+  gas_price_usd?: number | null;
+  chain?: string;
+  note?: string;
+  [k: string]: unknown;
+}
+interface BlockNumberResponse {
+  block_number?: number;
+  chain?: string;
+  note?: string;
+  [k: string]: unknown;
+}
+interface TokenBalanceResponse {
+  address?: string;
+  token?: string;
+  symbol?: string;
+  name?: string;
+  decimals?: number | null;
+  balance_raw?: string;
+  balance?: number | null;
+  balance_formatted?: string | null;
+  chain?: string;
+  note?: string;
+  [k: string]: unknown;
+}
+
+interface GasPriceResult extends GasPriceResponse {
+  summary: string;
+  paid: boolean;
+  activation?: Activation;
+  error?: string;
+}
+interface BlockNumberResult extends BlockNumberResponse {
+  summary: string;
+  paid: boolean;
+  activation?: Activation;
+  error?: string;
+}
+interface TokenBalanceResult extends TokenBalanceResponse {
+  summary: string;
+  paid: boolean;
+  activation?: Activation;
+  error?: string;
+}
+
+declare function buildGasPriceUrl(args?: ReadArgs): string;
+declare function buildGasPricePreviewUrl(args?: ReadArgs): string;
+declare function buildBlockNumberUrl(args?: ReadArgs): string;
+declare function buildBlockNumberPreviewUrl(args?: ReadArgs): string;
+declare function buildTokenBalanceUrl(args?: TokenBalanceArgs): string;
+declare function buildTokenBalancePreviewUrl(args?: TokenBalanceArgs): string;
+
+declare function summarizeGasPrice(out: GasPriceResponse): string;
+declare function summarizeBlockNumber(out: BlockNumberResponse): string;
+declare function summarizeTokenBalance(out: TokenBalanceResponse): string;
+
+declare function runGasPrice(payFetch: PayFetch, args?: ReadArgs, opts?: RunOpts): Promise<GasPriceResult>;
+declare function runBlockNumber(payFetch: PayFetch, args?: ReadArgs, opts?: RunOpts): Promise<BlockNumberResult>;
+declare function runTokenBalance(payFetch: PayFetch, args?: TokenBalanceArgs, opts?: RunOpts): Promise<TokenBalanceResult>;
+
 interface DataToolOptions {
     /** Pre-built x402-paying fetch; overrides `privateKey`. Mainly for tests. */
     payFetch?: PayFetch$1;
@@ -227,6 +304,44 @@ declare function createBaseBalance(opts?: DataToolOptions): _langchain_core_tool
 }, {
     address: string;
 }, [string, BalanceResult]>;
+/**
+ * LangChain tool: current Base mainnet gas price via Grey Ridge
+ * `/chain/gas-price` ($0.002 USDC/call, paid inline with x402 — no API key).
+ * Returns EIP-1559 base_fee_gwei / priority_fee_gwei, gas_price_gwei/_wei and
+ * gas_price_usd. The free preview is byte-identical to the paid route, so a
+ * keyless install gets the REAL live gas price (never a stub).
+ */
+declare function createBaseGasPrice(opts?: DataToolOptions): _langchain_core_tools.DynamicStructuredTool<z.ZodObject<{}, "strip", z.ZodTypeAny, {}, {}>, {}, {}, [string, GasPriceResult]>;
+/**
+ * LangChain tool: current Base mainnet block number via Grey Ridge
+ * `/chain/block-number` ($0.002 USDC/call, paid inline with x402 — no API key).
+ * The free preview is byte-identical to the paid route, so a keyless install
+ * gets the REAL current block.
+ */
+declare function createBaseBlockNumber(opts?: DataToolOptions): _langchain_core_tools.DynamicStructuredTool<z.ZodObject<{}, "strip", z.ZodTypeAny, {}, {}>, {}, {}, [string, BlockNumberResult]>;
+/**
+ * LangChain tool: ERC-20 token balance of a Base address via Grey Ridge
+ * `/chain/token-balance` ($0.002 USDC/call, paid inline with x402 — no API key).
+ * Returns symbol, decimals and the formatted balance. The free preview returns
+ * the REAL balance for the given address+token, so a keyless install gets a real
+ * number (never fabricated). `token` defaults to USDC on Base.
+ */
+declare function createBaseTokenBalance(opts?: DataToolOptions): _langchain_core_tools.DynamicStructuredTool<z.ZodObject<{
+    address: z.ZodString;
+    token: z.ZodOptional<z.ZodString>;
+}, "strip", z.ZodTypeAny, {
+    address: string;
+    token?: string | undefined;
+}, {
+    address: string;
+    token?: string | undefined;
+}>, {
+    address: string;
+    token?: string;
+}, {
+    address: string;
+    token?: string | undefined;
+}, [string, TokenBalanceResult]>;
 /** Zero-config tool instances: read `PRIVATE_KEY` (agent wallet) + optional `X402_DATA_BASE_URL` from env. */
 declare const defiYields: _langchain_core_tools.DynamicStructuredTool<z.ZodObject<{
     limit: z.ZodDefault<z.ZodNumber>;
@@ -281,7 +396,25 @@ declare const baseBalance: _langchain_core_tools.DynamicStructuredTool<z.ZodObje
 }, {
     address: string;
 }, [string, BalanceResult]>;
-/** All three data tools as a ready-to-spread array: `tools: [...defiDataTools]`. */
+declare const baseGasPrice: _langchain_core_tools.DynamicStructuredTool<z.ZodObject<{}, "strip", z.ZodTypeAny, {}, {}>, {}, {}, [string, GasPriceResult]>;
+declare const baseBlockNumber: _langchain_core_tools.DynamicStructuredTool<z.ZodObject<{}, "strip", z.ZodTypeAny, {}, {}>, {}, {}, [string, BlockNumberResult]>;
+declare const baseTokenBalance: _langchain_core_tools.DynamicStructuredTool<z.ZodObject<{
+    address: z.ZodString;
+    token: z.ZodOptional<z.ZodString>;
+}, "strip", z.ZodTypeAny, {
+    address: string;
+    token?: string | undefined;
+}, {
+    address: string;
+    token?: string | undefined;
+}>, {
+    address: string;
+    token?: string;
+}, {
+    address: string;
+    token?: string | undefined;
+}, [string, TokenBalanceResult]>;
+/** All six data tools as a ready-to-spread array: `tools: [...defiDataTools]`. */
 declare const defiDataTools: (_langchain_core_tools.DynamicStructuredTool<z.ZodObject<{
     limit: z.ZodDefault<z.ZodNumber>;
     project: z.ZodOptional<z.ZodString>;
@@ -332,6 +465,21 @@ declare const defiDataTools: (_langchain_core_tools.DynamicStructuredTool<z.ZodO
     address: string;
 }, {
     address: string;
-}, [string, BalanceResult]>)[];
+}, [string, BalanceResult]> | _langchain_core_tools.DynamicStructuredTool<z.ZodObject<{}, "strip", z.ZodTypeAny, {}, {}>, {}, {}, [string, GasPriceResult]> | _langchain_core_tools.DynamicStructuredTool<z.ZodObject<{}, "strip", z.ZodTypeAny, {}, {}>, {}, {}, [string, BlockNumberResult]> | _langchain_core_tools.DynamicStructuredTool<z.ZodObject<{
+    address: z.ZodString;
+    token: z.ZodOptional<z.ZodString>;
+}, "strip", z.ZodTypeAny, {
+    address: string;
+    token?: string | undefined;
+}, {
+    address: string;
+    token?: string | undefined;
+}>, {
+    address: string;
+    token?: string;
+}, {
+    address: string;
+    token?: string | undefined;
+}, [string, TokenBalanceResult]>)[];
 
-export { type Activation, type BalanceArgs, type BalanceResponse, type BalanceResult, DATA_BASE, type DataToolOptions, type PricesArgs, type PricesResult, type TokenPrice, type YieldArgs, type YieldPool, type YieldsResult, baseBalance, buildBalanceUrl, buildPricesPreviewUrl, buildPricesUrl, buildYieldsPreviewUrl, buildYieldsUrl, createBaseBalance, createCryptoPrices, createDefiYields, cryptoPrices, defiDataTools as default, defiDataTools, defiYields, fetchPricesOrPreview, fetchYieldsOrPreview, fundOnrampHint, normalizeCoins, runBalance, runPrices, runYields, summarizeBalance, summarizePrices, summarizeYields };
+export { type Activation, BASE_USDC, type BalanceArgs, type BalanceResponse, type BalanceResult, type BlockNumberResponse, type BlockNumberResult, DATA_BASE, type DataToolOptions, type GasPriceResponse, type GasPriceResult, type PricesArgs, type PricesResult, type ReadArgs, type TokenBalanceArgs, type TokenBalanceResponse, type TokenBalanceResult, type TokenPrice, type YieldArgs, type YieldPool, type YieldsResult, baseBalance, baseBlockNumber, baseGasPrice, baseTokenBalance, buildBalanceUrl, buildBlockNumberPreviewUrl, buildBlockNumberUrl, buildGasPricePreviewUrl, buildGasPriceUrl, buildPricesPreviewUrl, buildPricesUrl, buildTokenBalancePreviewUrl, buildTokenBalanceUrl, buildYieldsPreviewUrl, buildYieldsUrl, createBaseBalance, createBaseBlockNumber, createBaseGasPrice, createBaseTokenBalance, createCryptoPrices, createDefiYields, cryptoPrices, defiDataTools as default, defiDataTools, defiYields, fetchPricesOrPreview, fetchYieldsOrPreview, fundOnrampHint, normalizeCoins, runBalance, runBlockNumber, runGasPrice, runPrices, runTokenBalance, runYields, summarizeBalance, summarizeBlockNumber, summarizeGasPrice, summarizePrices, summarizeTokenBalance, summarizeYields };
